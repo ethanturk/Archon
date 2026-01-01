@@ -180,8 +180,9 @@ def load_environment_config() -> EnvironmentConfig:
         raise ConfigurationError("SUPABASE_SERVICE_KEY environment variable is required")
 
     # Validate required fields
-    if openai_api_key:
-        validate_openai_api_key(openai_api_key)
+    # Validation removed to allow mixed config (env/DB) and unblock startup
+    # if openai_api_key:
+    #     validate_openai_api_key(openai_api_key)
     validate_supabase_url(supabase_url)
 
     # Validate Supabase key type

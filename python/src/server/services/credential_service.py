@@ -467,7 +467,7 @@ class CredentialService:
             api_key = await self._get_provider_api_key(provider)
 
             # Get base URL if needed
-            base_url = self._get_provider_base_url(provider, rag_settings)
+            base_url = await self.get_provider_base_url(provider, rag_settings)
 
             # Get models with provider-specific fallback logic
             chat_model = rag_settings.get("MODEL_CHOICE", "")
@@ -516,9 +516,12 @@ class CredentialService:
             return await self.get_credential(key_name)
         return "ollama" if provider == "ollama" else None
 
-    def _get_provider_base_url(self, provider: str, rag_settings: dict) -> str | None:
+    async def get_provider_base_url(self, provider: str, rag_settings: dict) -> str | None:
         """Get base URL for provider."""
-        if provider == "ollama":
+        if provider == "openai":
+            # Check for explicitly configured OpenAI base URL
+            return await self.get_credential("OPENAI_BASE_URL")
+        elif provider == "ollama":
             return rag_settings.get("LLM_BASE_URL", "http://host.docker.internal:11434/v1")
         elif provider == "google":
             return "https://generativelanguage.googleapis.com/v1beta/openai/"

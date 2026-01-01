@@ -355,7 +355,7 @@ async def get_llm_client(
 
             # For Ollama, don't use the base_url from config - let _get_optimal_ollama_instance decide
             base_url = (
-                credential_service._get_provider_base_url(provider, rag_settings)
+                await credential_service.get_provider_base_url(provider, rag_settings)
                 if provider != "ollama"
                 else None
             )
@@ -398,8 +398,11 @@ async def get_llm_client(
 
         if provider_name == "openai":
             if api_key:
-                client = openai.AsyncOpenAI(api_key=api_key)
-                logger.info("OpenAI client created successfully")
+                client = openai.AsyncOpenAI(
+                    api_key=api_key,
+                    base_url=base_url
+                )
+                logger.info(f"OpenAI client created successfully with base URL: {base_url or 'default'}")
             else:
                 logger.warning("OpenAI API key not found, attempting Ollama fallback")
                 try:

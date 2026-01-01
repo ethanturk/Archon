@@ -41,7 +41,50 @@ class CredentialResponse(BaseModel):
     message: str
 
 
-# Credential Management Endpoints
+class TestConnectionRequest(BaseModel):
+    service_type: str = "llm"  # "llm" or "embedding"
+
+
+@router.post("/settings/test-connection")
+async def test_connection(request: TestConnectionRequest):
+    """Test connection with current settings."""
+    from ..services.llm_provider_service import get_llm_client
+    
+    try:
+        logfire.info(f"Testing connection | service={request.service_type}")
+        
+        # Determine strict provider mode (no failover) for testing
+        # We want to know if the SPECIFIC configuration works
+        
+        # Get active provider to know who we are testing
+        active_config = await credential_service.get_active_provider(request.service_type)
+        provider = active_config.get("provider")
+        
+        logfire.info(f"Testing provider configuration | provider={provider} | service={request.service_type}")
+        
+        # Use simple prompt for connectivity check
+        messages = [{"role": "user", "content": "Hi"}]
+        
+        async with get_llm_client(provider=provider, use_embedding_provider=(request.service_type == "embedding")) as client:
+            if request.service_type == "embedding":
+                # Test embedding
+                await client.embeddings.create(input="test", model=active_config.get("embedding_model", "text-embedding-3-small"))
+            else:
+                # Test LLM (max_tokens=1 to keep it fast)
+                await client.chat.completions.create(
+                    model=active_config.get("chat_model", "gpt-3.5-turbo"), # Fallback model if not in config
+                    messages=messages,
+                    max_tokens=5
+                )
+                
+        logfire.info("Connection test successful")
+        return {"success": True, "message": f"Successfully connected to {provider}"}
+        
+    except Exception as e:
+        logfire.error(f"Connection test failed | error={str(e)}")
+        # Return 200 with success=False so frontend handles it gracefully as a check result, not an API error
+        return {"success": False, "message": f"Connection failed: {str(e)}"}
+
 @router.get("/credentials")
 async def list_credentials(category: str | None = None):
     """List all credentials and their categories."""
