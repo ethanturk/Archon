@@ -1,0 +1,82 @@
+name: Build and Publish Images
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "python/**"
+      - "archon-ui-main/**"
+      - ".github/workflows/publish-images.yml"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: server
+            context: ./python
+            file: ./python/Dockerfile.server
+            image_suffix: -server
+          - service: mcp
+            context: ./python
+            file: ./python/Dockerfile.mcp
+            image_suffix: -mcp
+          - service: agents
+            context: ./python
+            file: ./python/Dockerfile.agents
+            image_suffix: -agents
+          - service: agent-work-orders
+            context: ./python
+            file: ./python/Dockerfile.agent-work-orders
+            image_suffix: -agent-work-orders
+          - service: frontend
+            context: ./archon-ui-main
+            file: ./archon-ui-main/Dockerfile
+            image_suffix: -frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}${{ matrix.image_suffix }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=,format=long
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
